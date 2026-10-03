@@ -52,7 +52,7 @@ def calculator():
             else:
                 result = num1 / num2
                 print(f"The result is: {num1} / {num2} = {result:.2f}")
-        again = input("Do you want to perform another calculation? (yes/no): ").strip().lower()
+        again = input("Would you like to perform another calculation? (yes/no): ").strip().lower()
         if again != 'yes':
             print("Thank you for using the calculator. Goodbye!")
             break
