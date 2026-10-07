@@ -183,9 +183,10 @@ else:
                 room_ref.update({"status": "playing"})
                 st.rerun()
         
+        else:
         # Auto-refresh helper to detect when the host starts the match
-        time.sleep(2)
-        st.rerun()
+            time.sleep(2)
+            st.rerun()
         
     else:
         current_turn_player = room_data["players"][room_data["player_index"]]
@@ -236,7 +237,7 @@ else:
                     })
                 else:
                     # Provide higher / lower direction parameters updates
-                    hint = "Wrong!" if guess > room_data["secret_number"] else "Incorrect!"
+                    hint = "Too high!" if guess > room_data["secret_number"] else "Too low!"
                     next_index = (room_data["player_index"] + 1) % len(room_data["players"])
                     room_ref.update({
                         "guesses_taken": new_guesses,
