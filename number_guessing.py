@@ -89,8 +89,10 @@ st.markdown("""
 def get_db():
     try:
         # Load the configuration keys from your local folder file
-        creds = service_account.Credentials.from_service_account_file("firebase_credentials.json")
-        return firestore.Client(credentials=creds)
+        creds = service_account.Credentials.from_service_account_info(
+            dict(st.secrets["gcp_service_account"])
+        )
+        return firestore.Client(credentials=creds, project=creds.project_id)
     except Exception as e:
         st.error(f"Firebase error: {e}")
         return None
