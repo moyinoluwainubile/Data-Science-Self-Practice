@@ -184,15 +184,22 @@ else:
         st.markdown('<div class="game-container" style="text-align:center;">', unsafe_allow_html=True)
         st.info("⌛ Waiting for the Host to lock the room and start the match...")
         
-        # INTACT FIX: Checking the first index [0] inside the database player list array
-        if room_data["players"][0] == st.session_state.my_name:
+        # Check if current user is the host (first player in the list)
+        is_host = room_data["players"][0] == st.session_state.my_name
+        
+        if is_host:
+            st.write("⭐ You are the Host of this room.")
             if st.button("Lock Room & Start Game 🎮", type="primary"):
                 room_ref.update({"status": "playing"})
                 st.rerun()
+        else:
+            st.write("Waiting for the host to start the game...")
+            
+        st.write("---")
+        if st.button("🔄 Refresh Lobby"):
+            st.rerun()
+            
         st.markdown('</div>', unsafe_allow_html=True)
-        
-        time.sleep(2)
-        st.rerun()
         
     else:
         current_turn_player = room_data["players"][room_data["player_index"]]
