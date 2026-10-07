@@ -10,7 +10,7 @@ st.set_page_config(page_title="Number Guessing Game", page_icon="🎮", layout="
 # --- CUSTOM CSS VISUAL MAKEOVER ---
 st.markdown("""
     <style>
-    /* Change background to a modern light grey */
+    /* Global App Background */
     .stApp {
         background-color: #f7f9fc;
     }
@@ -20,20 +20,38 @@ st.markdown("""
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
         padding: 24px;
         border-radius: 16px;
-        color: white;
+        color: white !important;
         text-align: center;
         margin-bottom: 25px;
         box-shadow: 0 4px 15px rgba(30, 60, 114, 0.2);
     }
+    .app-header h1, .app-header p {
+        color: white !important;
+    }
     
-    /* Clean Visual Containers for Content */
+    /* LIGHT MODE: Clean Visual Containers */
     .game-container {
-        background-color: white;
+        background-color: white !important;
         padding: 25px;
         border-radius: 16px;
         border: 1px solid #e1e8ed;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         margin-bottom: 25px;
+    }
+    
+    /* DARK MODE ADAPTIVE STYLE: Fixes mobile phone visibility bugs */
+    @media (prefers-color-scheme: dark) {
+        .stApp {
+            background-color: #0e1117 !important;
+        }
+        .game-container {
+            background-color: #1a1c23 !important;
+            border: 1px solid #2d3139 !important;
+        }
+        /* Forces all text items to adapt to solid high-visibility white */
+        .stMarkdown, p, label, span, h3, div {
+            color: #ffffff !important;
+        }
     }
     
     /* Alert Style Turn Boxes */
@@ -42,7 +60,7 @@ st.markdown("""
         border-left: 5px solid #34a853;
         padding: 15px;
         border-radius: 8px;
-        color: #137333;
+        color: #137333 !important;
         font-weight: bold;
         margin-bottom: 15px;
     }
@@ -51,12 +69,12 @@ st.markdown("""
         border-left: 5px solid #fbbc04;
         padding: 15px;
         border-radius: 8px;
-        color: #b06000;
+        color: #b06000 !important;
         font-weight: bold;
         margin-bottom: 15px;
     }
     
-    /* Stretch Submit Buttons to Full Width for easier mobile tapping */
+    /* Full-Width responsive buttons for easier mobile tapping */
     div.stButton > button:first-child {
         width: 100%;
         border-radius: 8px;

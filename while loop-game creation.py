@@ -44,7 +44,7 @@ def play_round(round_number, players_list):
         return None  # 3. This line returns None, indicating that the round ended without a winner.
 
 # --- Main Game Setup ---
-print("🏆 WELCOME TO THE MULTIPLAYER GUESSING GAME 🏆\n")
+print("🏆 WELCOME TO THE NUMBER GUESSING GAME 🏆\n")
 
 # 1. Determine number of players dynamically
 num_players = int(input("How many players want to play? "))
