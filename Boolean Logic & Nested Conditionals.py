@@ -19,6 +19,6 @@ else:
 password = "abc123"
 has_length = len(password) >= 8 # Checks length of Password
 has_number = any(char.isdigit() for char in password) # checks if number is in password
-print(has_length)
-print(has_number)
-print(has_length and has_number)
+print(has_length) #prints True or False depending on the length of the password
+print(has_number) #prints True or False depending on if there is a number in the password
+print(has_length and has_number) #prints True if both conditions are met, otherwise prints False
