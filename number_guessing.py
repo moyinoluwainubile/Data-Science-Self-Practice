@@ -84,10 +84,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Connect safely to the central cloud storage database
+# 1. Connect safely to the central cloud storage database
 @st.cache_resource
 def get_db():
     try:
+        # Load the configuration keys from your local folder file
         creds = service_account.Credentials.from_service_account_file("firebase_credentials.json")
         return firestore.Client(credentials=creds)
     except Exception as e:
@@ -96,24 +97,16 @@ def get_db():
 
 db = get_db()
 
-# Render the Beautiful Styled Banner Header
-st.markdown("""
-    <div class="app-header">
-        <h1 style='margin:0; font-size:26px;'>🏆 Number Guessing Game Online</h1>
-        <p style='margin:5px 0 0 0; opacity:0.8; font-size:14px;'>Real-Time Cross-Device Match</p>
-    </div>
-""", unsafe_allow_html=True)
+st.title("🏆 Live Number Guessing Game")
 
 # --- INITIAL SETUP SCREEN ---
 if "room_active" not in st.session_state:
-    st.markdown('<div class="game-container">', unsafe_allow_html=True)
     st.subheader("🏠 Multi-Device Matchmaking Room")
     
     room_code = st.text_input("Enter 4-Digit Room Code (e.g., A7B9):", value="1234").upper().strip()
     my_name = st.text_input("Your Player Name:", value="Player").strip()
     
     choice = st.radio("Choose Action:", ["Create New Game Room (Host)", "Join Existing Game Room"])
-    st.markdown('</div>', unsafe_allow_html=True)
     
     if st.button("Connect to Lobby 🚀", type="primary"):
         if not room_code or not my_name:
@@ -123,13 +116,14 @@ if "room_active" not in st.session_state:
             room_data = room_ref.get()
             
             if choice == "Create New Game Room (Host)":
+                # The Host initializes the shared memory state parameters
                 secret = random.randint(1, 50)
                 room_ref.set({
                     "players": [my_name],
                     "scores": {my_name: 0},
                     "secret_number": secret,
                     "guesses_taken": 0,
-                    "max_attempts": 3,  # Scales up dynamically by 3 per player
+                    "max_attempts": 6, # Will scale when players join
                     "player_index": 0,
                     "feedback": "Room created. Waiting for players to join...",
                     "round_number": 1,
@@ -141,12 +135,10 @@ if "room_active" not in st.session_state:
                 st.rerun()
                 
             else:
+                # The Joiner attaches their profile to the existing database keys
                 if room_data.exists:
                     data = room_data.to_dict()
-                    
-                    if len(data["players"]) >= 6:
-                        st.error("This room is full! Maximum limit is 6 players.")
-                    elif my_name in data["players"]:
+                    if my_name in data["players"]:
                         st.error("That name is already taken in this room!")
                     else:
                         data["players"].append(my_name)
@@ -167,6 +159,8 @@ if "room_active" not in st.session_state:
 # --- ACTIVE REAL-TIME GAMEPLAY SCREEN ---
 else:
     room_ref = db.collection("guessing_rooms").document(st.session_state.room_code)
+    
+    # Listen continuously to the database changes
     room_data = room_ref.get().to_dict()
     
     if not room_data:
@@ -176,50 +170,43 @@ else:
             st.rerun()
         st.stop()
 
+    # Display game settings and current active players
     st.sidebar.markdown(f"### 📍 Room Code: **{st.session_state.room_code}**")
     st.sidebar.markdown(f"**Your Profile Name:** {st.session_state.my_name}")
-    st.sidebar.write(f"Connected Players ({len(room_data['players'])}/6):", ", ".join(room_data["players"]))
+    st.sidebar.write("Connected Players:", ", ".join(room_data["players"]))
     
     if room_data["status"] == "lobby":
-        st.markdown('<div class="game-container" style="text-align:center;">', unsafe_allow_html=True)
         st.info("⌛ Waiting for the Host to lock the room and start the match...")
-        
-        # Check if current user is the host (first player in the list)
-        is_host = room_data["players"][0] == st.session_state.my_name
-        
-        if is_host:
-            st.write("⭐ You are the Host of this room.")
+        # Only allow the creator/host to click the start game trigger
+        if room_data["players"][0] == st.session_state.my_name:
             if st.button("Lock Room & Start Game 🎮", type="primary"):
                 room_ref.update({"status": "playing"})
                 st.rerun()
-        else:
-            st.write("Waiting for the host to start the game...")
-            
-        st.write("---")
-        if st.button("🔄 Refresh Lobby"):
-            st.rerun()
-            
-        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Auto-refresh helper to detect when the host starts the match
+        time.sleep(2)
+        st.rerun()
         
     else:
         current_turn_player = room_data["players"][room_data["player_index"]]
         
-        st.markdown('<div class="game-container">', unsafe_allow_html=True)
-        st.markdown(f"<h3 style='margin:0 0 15px 0; color:#2a5298;'>✨ Round {room_data['round_number']}</h3>", unsafe_allow_html=True)
+        st.subheader(f"✨ Round {room_data['round_number']}")
         
+        # Real-time leaderboard across devices
         cols = st.columns(len(room_data["players"]))
         for idx, name in enumerate(room_data["players"]):
             cols[idx].metric(label=name, value=f"{room_data['scores'].get(name, 0)} wins")
             
         st.write(f"📊 Attempts remaining in round: {room_data['max_attempts'] - room_data['guesses_taken']}")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.divider()
         
+        # Display the central match logs
         if room_data["feedback"]:
             st.code(room_data["feedback"])
             
-        st.markdown('<div class="game-container">', unsafe_allow_html=True)
+        # Isolate interface interactions based on turn index rules
         if current_turn_player == st.session_state.my_name:
-            st.markdown('<div class="your-turn-banner">👉 It is YOUR turn to guess!</div>', unsafe_allow_html=True)
+            st.success("👉 **It is YOUR turn to guess!**")
             
             with st.form(key="live_guess_form", clear_on_submit=True):
                 guess = st.number_input("Guess the number (1-50):", min_value=1, max_value=50, step=1)
@@ -228,6 +215,7 @@ else:
             if submit:
                 new_guesses = room_data["guesses_taken"] + 1
                 
+                # Check target values matches
                 if guess == room_data["secret_number"]:
                     room_data["scores"][st.session_state.my_name] += 1
                     room_ref.update({
@@ -247,22 +235,20 @@ else:
                         "feedback": f"💥 Round Over! Out of attempts. The number was {room_data['secret_number']}."
                     })
                 else:
-                    hint = "Wrong!" if guess > room_data["secret_number"] else "Wrong!"
+                    # Provide higher / lower direction parameters updates
+                    hint = "Wrong!" if guess > room_data["secret_number"] else "Incorrect!"
                     next_index = (room_data["player_index"] + 1) % len(room_data["players"])
-                    
-                    feedback_str = f"❌ {st.session_state.my_name} guessed {guess} — {hint}"
                     room_ref.update({
                         "guesses_taken": new_guesses,
                         "player_index": next_index,
-                        "feedback": feedback_str
+                        "feedback": f"❌ {st.session_state.my_name} guessed {guess} — {hint}"
                     })
                 st.rerun()
         else:
-            waiting_msg = f"⏳ Waiting for {current_turn_player} to guess..."
-            st.markdown(f'<div class="waiting-banner">{waiting_msg}</div>', unsafe_allow_html=True)
+            st.warning(f"⏳ Waiting for **{current_turn_player}** to guess...")
+            # Auto-refresh loop to poll changes from the other player's turns
             time.sleep(3)
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
 
     if st.sidebar.button("Leave Room 🏠"):
         del st.session_state.room_active
