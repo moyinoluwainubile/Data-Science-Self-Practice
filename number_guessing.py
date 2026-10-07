@@ -183,10 +183,8 @@ else:
                 room_ref.update({"status": "playing"})
                 st.rerun()
         
-        else:
-        # Auto-refresh helper to detect when the host starts the match
-            time.sleep(2)
-            st.rerun()
+         # This keeps the background checking alive gracefully without trapping buttons in a loop
+        st.fragment(run_every=3)(lambda: None)() 
         
     else:
         current_turn_player = room_data["players"][room_data["player_index"]]
@@ -247,9 +245,8 @@ else:
                 st.rerun()
         else:
             st.warning(f"⏳ Waiting for **{current_turn_player}** to guess...")
-            # Auto-refresh loop to poll changes from the other player's turns
-            time.sleep(3)
-            st.rerun()
+            # Triggers a safe 3-second background refresh container
+            st.fragment(run_every=3)(lambda: None)()
 
     if st.sidebar.button("Leave Room 🏠"):
         del st.session_state.room_active
