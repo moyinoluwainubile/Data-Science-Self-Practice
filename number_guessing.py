@@ -92,9 +92,8 @@ def get_db():
         creds = service_account.Credentials.from_service_account_file("firebase_credentials.json")
         return firestore.Client(credentials=creds)
     except Exception as e:
-        st.error("Missing firebase_credentials.json file in your folder structure.")
+        st.error(f"Firebase error: {e}")
         return None
-
 db = get_db()
 
 st.title("🏆 Live Number Guessing Game")
