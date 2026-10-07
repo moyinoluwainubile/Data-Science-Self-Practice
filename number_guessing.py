@@ -110,13 +110,11 @@ if "room_active" not in st.session_state:
     choice = st.radio("Choose Action:", ["Create New Game Room (Host)", "Join Existing Game Room"])
     
     if st.button("Connect to Lobby 🚀", type="primary"):
-        st.write("DEBUG 1: The Connect to Lobby button was clicked.")
         if not room_code or not my_name:
             st.warning("Please fill in both fields.")
         else:
             room_ref = db.collection("guessing_rooms").document(room_code)
             room_data = room_ref.get()
-            st.write("DEBUG 2: Firestore room lookup completed.")
             
             if choice == "Create New Game Room (Host)":
                 # The Host initializes the shared memory state parameters
@@ -196,6 +194,7 @@ else:
             # Host Trigger Check
             if live_data["players"][0] == st.session_state.my_name:
                 if st.button("Lock Room & Start Game 🎮", type="primary"):
+                    st.write("DEBUG LOCK: Lock Room button was clicked.")
                     room_ref.update({"status": "playing"})
                     st.rerun()
         else:
