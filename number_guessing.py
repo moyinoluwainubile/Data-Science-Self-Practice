@@ -219,8 +219,13 @@ else:
             st.write("### 🏆 Current Scores")
 
             for player, score in live_data["scores"].items():
-                st.write(f"**{player}:** {score} point(s)")
+                attempts_used = live_data["player_attempts"].get(player, 0)
 
+                st.write(
+                    f"**{player}:** {score} point(s) · "
+                    f"{attempts_used}/3 attempts"
+                )
+                
             st.divider()
 
             current_player = live_data["players"][live_data["player_index"]]
@@ -281,7 +286,7 @@ else:
 
                     elif guess < secret_number:
 
-                        st.info("📈 Too low!")
+                        st.info("❌ Wrong guess!")
 
                         attempts_used = live_data["player_attempts"].get(
                             st.session_state.my_name, 0
@@ -324,7 +329,7 @@ else:
 
                         room_ref.update({
                             "feedback": (
-                                f"{st.session_state.my_name} guessed too low. "
+                                f"{st.session_state.my_name} made a wrong guess. "
                                 f"Attempt {attempts_used} of 3."
                             ),
                             "guesses_taken": live_data["guesses_taken"] + 1,
@@ -336,7 +341,7 @@ else:
 
                     else:
 
-                        st.info("📉 Too high!")
+                        st.info("❌ Wrong guess!")
 
                         attempts_used = live_data["player_attempts"].get(
                             st.session_state.my_name, 0
@@ -379,7 +384,7 @@ else:
 
                         room_ref.update({
                             "feedback": (
-                                f"{st.session_state.my_name} guessed too high. "
+                                f"{st.session_state.my_name} made a wrong guess. "
                                 f"Attempt {attempts_used} of 3."
                             ),
                             "guesses_taken": live_data["guesses_taken"] + 1,
