@@ -124,6 +124,7 @@ if "room_active" not in st.session_state:
                     "scores": {my_name: 0},
                     "secret_number": secret,
                     "guesses_taken": 0,
+                    "player_attempts": {my_name: 0},
                     "max_attempts": 6, # Will scale when players join
                     "player_index": 0,
                     "feedback": "Room created. Waiting for players to join...",
@@ -144,10 +145,12 @@ if "room_active" not in st.session_state:
                     else:
                         data["players"].append(my_name)
                         data["scores"][my_name] = 0
+                        data["player_attempts"][my_name] = 0
                         data["max_attempts"] = len(data["players"]) * 3
                         room_ref.update({
                             "players": data["players"],
                             "scores": data["scores"],
+                            "player_attempts": data["player_attempts"],
                             "max_attempts": data["max_attempts"]
                         })
                         st.session_state.room_code = room_code
@@ -222,6 +225,14 @@ else:
 
                 st.success("🎯 It is your turn!")
 
+                attempts_used = live_data["player_attempts"].get(
+                     st.session_state.my_name, 0
+                    )
+                
+                attempts_remaining = 3 - attempts_used
+
+                st.write(f"🎯 Attempts remaining: **{attempts_remaining} / 3**")
+
                 st.write("Guess a number between **1 and 50**.")
 
                 guess = st.number_input(
@@ -238,10 +249,27 @@ else:
 
                     if guess == secret_number:
 
+                        attempts_used = live_data["player_attempts"].get(
+                            st.session_state.my_name, 0
+                        ) + 1
+
+                        updated_scores = live_data["scores"].copy()
+                        updated_scores[st.session_state.my_name] += 1
+
                         st.success("🎉 Correct! You guessed the number!")
 
                         room_ref.update({
-                            "feedback": f"{st.session_state.my_name} guessed the number correctly!",
+                            "feedback": (
+                                f"{st.session_state.my_name} guessed the number correctly "
+                                f"on attempt {attempts_used}!"
+                            ),
+                            "scores": updated_scores,
+                            "player_attempts": {
+                                **live_data["player_attempts"],
+                                st.session_state.my_name: attempts_used
+                            },
+                            "winner": st.session_state.my_name,
+                            "winning_attempts": attempts_used,
                             "status": "finished"
                         })
 
@@ -251,29 +279,51 @@ else:
 
                         st.info("📈 Too low!")
 
+                        attempts_used = live_data["player_attempts"].get(
+                            st.session_state.my_name, 0
+                        ) + 1
+
+                        updated_attempts = live_data["player_attempts"].copy()
+                        updated_attempts[st.session_state.my_name] = attempts_used
+
                         next_player_index = (
                             live_data["player_index"] + 1
                         ) % len(live_data["players"])
 
                         room_ref.update({
-                            "feedback": f"{st.session_state.my_name} guessed too low.",
+                            "feedback": (
+                                f"{st.session_state.my_name} guessed too low. "
+                                f"Attempt {attempts_used} of 3."
+                            ),
                             "guesses_taken": live_data["guesses_taken"] + 1,
+                            "player_attempts": updated_attempts,
                             "player_index": next_player_index
                         })
-
+                        
                         st.rerun()
 
                     else:
 
                         st.info("📉 Too high!")
 
+                        attempts_used = live_data["player_attempts"].get(
+                            st.session_state.my_name, 0
+                        ) + 1
+
+                        updated_attempts = live_data["player_attempts"].copy()
+                        updated_attempts[st.session_state.my_name] = attempts_used
+
                         next_player_index = (
                             live_data["player_index"] + 1
                         ) % len(live_data["players"])
 
                         room_ref.update({
-                            "feedback": f"{st.session_state.my_name} guessed too high.",
+                            "feedback": (
+                                f"{st.session_state.my_name} guessed too high. "
+                                f"Attempt {attempts_used} of 3."
+                            ),
                             "guesses_taken": live_data["guesses_taken"] + 1,
+                            "player_attempts": updated_attempts,
                             "player_index": next_player_index
                         })
 
