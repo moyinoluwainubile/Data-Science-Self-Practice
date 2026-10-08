@@ -181,26 +181,117 @@ else:
     # --- REAL-TIME GAME INTERFACE CONTAINER ---
     # We wrap the entire status and turn view inside ONE fragment function.
     # This ensures only this container redraws every 3 seconds, leaving buttons fully clickable.
-    @st.fragment(run_every=3)
-    def render_game_lobby():
-        # Pull fresh server data at the start of the fragment refresh
-        live_data = room_ref.get().to_dict()
-        if not live_data:
-            st.stop()
-            
-        if live_data["status"] == "lobby":
-            st.info("⌛ Waiting for the Host to lock the room and start the match...")
-            
-            # Host Trigger Check
-            if live_data["players"][0] == st.session_state.my_name:
-                if st.button("Lock Room & Start Game 🎮", type="primary"):
-                    st.write("DEBUG LOCK: Lock Room button was clicked.")
-                    room_ref.update({"status": "playing"})
-                    st.write("DEBUG LOCK 2: Firestore status update completed.")
+@st.fragment(run_every=3)
+def render_game_lobby():
+    # Pull fresh server data from Firestore
+    live_data = room_ref.get().to_dict()
+
+    if not live_data:
+        st.stop()
+
+    # -----------------------------
+    # LOBBY
+    # -----------------------------
+    if live_data["status"] == "lobby":
+
+        st.info("⌛ Waiting for the Host to lock the room and start the match...")
+
+        # Only the host can start the game
+        if live_data["players"][0] == st.session_state.my_name:
+
+            if st.button("Lock Room & Start Game 🎮", type="primary"):
+                room_ref.update({"status": "playing"})
+                st.rerun()
+
+    # -----------------------------
+    # GAME
+    # -----------------------------
+    elif live_data["status"] == "playing":
+
+        st.subheader(f"🎮 Round {live_data['round_number']}")
+
+        st.write(
+            f"Players: {', '.join(live_data['players'])}"
+        )
+
+        st.divider()
+
+        current_player = live_data["players"][live_data["player_index"]]
+
+        if current_player == st.session_state.my_name:
+
+            st.success("🎯 It is your turn!")
+
+            st.write("Guess a number between **1 and 50**.")
+
+            guess = st.number_input(
+                "Your Guess",
+                min_value=1,
+                max_value=50,
+                step=1,
+                key="current_guess"
+            )
+
+            if st.button("Submit Guess 🎯", type="primary"):
+
+                secret_number = live_data["secret_number"]
+
+                if guess == secret_number:
+
+                    st.success("🎉 Correct! You guessed the number!")
+
+                    room_ref.update({
+                        "feedback": f"{st.session_state.my_name} guessed the number correctly!",
+                        "status": "finished"
+                    })
+
                     st.rerun()
+
+                elif guess < secret_number:
+
+                    st.info("📈 Too low!")
+
+                    room_ref.update({
+                        "feedback": f"{st.session_state.my_name} guessed too low.",
+                        "guesses_taken": live_data["guesses_taken"] + 1
+                    })
+
+                    st.rerun()
+
+                else:
+
+                    st.info("📉 Too high!")
+
+                    room_ref.update({
+                        "feedback": f"{st.session_state.my_name} guessed too high.",
+                        "guesses_taken": live_data["guesses_taken"] + 1
+                    })
+
+                    st.rerun()
+
         else:
-            # If status switched to 'playing', reload the main app to show game inputs
-            st.rerun()
+
+            st.warning(
+                f"⏳ Waiting for **{current_player}** to make their guess..."
+            )
+
+        # Display latest game feedback
+        if live_data.get("feedback"):
+            st.info(f"💬 {live_data['feedback']}")
+
+    # -----------------------------
+    # GAME FINISHED
+    # -----------------------------
+    elif live_data["status"] == "finished":
+
+        st.subheader("🏆 Game Finished!")
+
+        st.success(live_data.get("feedback", "The game has ended."))
+
+        st.write("### Scores")
+
+        for player, score in live_data["scores"].items():
+            st.write(f"**{player}:** {score}")
 
     # Execute the fragment container safely
     render_game_lobby()
