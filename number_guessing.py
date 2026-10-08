@@ -391,15 +391,52 @@ else:
         # GAME FINISHED
         # -----------------------------
         elif live_data["status"] == "finished":
-
             st.subheader("🏆 Game Finished!")
 
-            st.success(live_data.get("feedback", "The game has ended."))
+            if live_data.get("winner"):
+                st.success(
+                    f"🎉 {live_data['winner']} won the round "
+                    f"in {live_data['winning_attempts']} attempt(s)!"
+                )
+            else:
+                st.warning(
+                    f"😮 Nobody guessed the number correctly. "
+                    f"The number was **{live_data['secret_number']}**."
+                )
 
             st.write("### Scores")
 
             for player, score in live_data["scores"].items():
                 st.write(f"**{player}:** {score}")
+
+            st.divider()
+
+            st.write("### 🔄 Play Another Round?")
+
+            if st.button("Yes — Play Again 🎮", type="primary"):
+                new_secret = random.randint(1, 50)
+
+                reset_attempts = {
+                    player: 0
+                    for player in live_data["players"]
+                }
+
+                room_ref.update({
+                    "secret_number": new_secret,
+                    "player_attempts": reset_attempts,
+                    "guesses_taken": 0,
+                    "player_index": 0,
+                    "round_number": live_data["round_number"] + 1,
+                    "feedback": "New round started!",
+                    "status": "playing",
+                    "winner": None,
+                    "winning_attempts": None
+                })
+
+                st.rerun()
+
+            if st.button("No — End Game"):
+                st.info("Thanks for playing! 🎮")
 
     # Execute the fragment container safely
     render_game_lobby()
