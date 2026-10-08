@@ -172,8 +172,6 @@ else:
     # Sidebar details
     st.sidebar.markdown(f"### 📍 Room Code: **{st.session_state.room_code}**")
     st.sidebar.markdown(f"**Your Profile Name:** {st.session_state.my_name}")
-    latest_room_data = room_ref.get().to_dict()
-    st.sidebar.write("Connected Players:", ", ".join(room_data["players"]))
     
     if st.sidebar.button("Leave Room 🏠"):
         del st.session_state.room_active
@@ -191,6 +189,8 @@ else:
         if not live_data:
             st.stop()
 
+        st.sidebar.write("Connected Players:", ", ".join(live_data["players"]))
+        
         st.write("DEBUG PLAYERS:", live_data["players"])
         st.write("DEBUG STATUS:", live_data["status"])
         st.write("DEBUG MY NAME:", st.session_state.my_name)
