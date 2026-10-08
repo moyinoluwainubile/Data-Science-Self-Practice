@@ -304,15 +304,18 @@ else:
 
                         current_index = live_data["player_index"]
 
-                        remaining_indices = [
-                            i for i in available_players
-                            if i != current_index
-                        ]
+                        next_player_index = (
+                            current_index + 1
+                        ) % len(live_data["players"])
 
-                        if remaining_indices:
-                            next_player_index = remaining_indices[0]
-                        else:
-                            next_player_index = available_players[0]
+                        while (
+                            updated_attempts.get(
+                                live_data["players"][next_player_index], 0
+                            ) >= 3
+                        ):
+                            next_player_index = (
+                                next_player_index + 1
+                            ) % len(live_data["players"])
 
                         room_ref.update({
                             "feedback": (
@@ -355,15 +358,18 @@ else:
 
                         current_index = live_data["player_index"]
 
-                        remaining_indices = [
-                            i for i in available_players
-                            if i != current_index
-                        ]
+                        next_player_index = (
+                            current_index + 1
+                        ) % len(live_data["players"])
 
-                        if remaining_indices:
-                            next_player_index = remaining_indices[0]
-                        else:
-                            next_player_index = available_players[0]
+                        while (
+                            updated_attempts.get(
+                                live_data["players"][next_player_index], 0
+                            ) >= 3
+                        ):
+                            next_player_index = (
+                                next_player_index + 1
+                            ) % len(live_data["players"])
 
                         room_ref.update({
                             "feedback": (
