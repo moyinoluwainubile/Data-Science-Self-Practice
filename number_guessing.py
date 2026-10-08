@@ -399,7 +399,7 @@ else:
         # GAME FINISHED
         # -----------------------------
         elif live_data["status"] == "finished":
-            st.subheader("🏆 Game Finished!")
+            st.subheader(f"🏆 Round {live_data['round_number']} Finished!")
 
             if live_data.get("winner"):
                 st.success(
@@ -408,20 +408,25 @@ else:
                 )
             else:
                 st.warning(
-                    f"😮 Nobody guessed the number correctly. "
-                    f"The number was **{live_data['secret_number']}**."
+                    f"😮 Nobody guessed the number correctly.\n\n"
+                    f"The secret number was **{live_data['secret_number']}**."
                 )
-
-            st.write("### Scores")
-
-            for player, score in live_data["scores"].items():
-                st.write(f"**{player}:** {score}")
 
             st.divider()
 
-            st.write("### 🔄 Play Another Round?")
+            st.write("### 🏆 Scoreboard")
 
-            if st.button("Yes — Play Again 🎮", type="primary"):
+            for player, score in live_data["scores"].items():
+                if player == live_data.get("winner"):
+                    st.success(f"🥇 **{player}: {score} point(s)**")
+                else:
+                    st.write(f"**{player}:** {score} point(s)")
+
+            st.divider()
+
+            st.write("### 🔄 What would you like to do?")
+
+            if st.button("🎮 Play Another Round", type="primary"):
                 new_secret = random.randint(1, 50)
 
                 reset_attempts = {
@@ -443,7 +448,7 @@ else:
 
                 st.rerun()
 
-            if st.button("No — End Game"):
+            if st.button("🚪 End Game"):
                 st.info("Thanks for playing! 🎮")
 
     # Execute the fragment container safely
