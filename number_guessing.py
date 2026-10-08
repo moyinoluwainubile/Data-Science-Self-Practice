@@ -196,6 +196,7 @@ else:
                 if st.button("Lock Room & Start Game 🎮", type="primary"):
                     st.write("DEBUG LOCK: Lock Room button was clicked.")
                     room_ref.update({"status": "playing"})
+                    st.write("DEBUG LOCK 2: Firestore status update completed.")
                     st.rerun()
         else:
             # If status switched to 'playing', reload the main app to show game inputs
