@@ -189,6 +189,10 @@ def render_game_lobby():
     if not live_data:
         st.stop()
 
+    st.write("DEBUG PLAYERS:", live_data["players"])
+    st.write("DEBUG STATUS:", live_data["status"])
+    st.write("DEBUG MY NAME:", st.session_state.my_name)
+
     # -----------------------------
     # LOBBY
     # -----------------------------
