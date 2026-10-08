@@ -190,10 +190,6 @@ else:
             st.stop()
 
         st.sidebar.write("Connected Players:", ", ".join(live_data["players"]))
-        
-        st.write("DEBUG PLAYERS:", live_data["players"])
-        st.write("DEBUG STATUS:", live_data["status"])
-        st.write("DEBUG MY NAME:", st.session_state.my_name)
 
         # -----------------------------
         # LOBBY
@@ -255,9 +251,14 @@ else:
 
                         st.info("📈 Too low!")
 
+                        next_player_index = (
+                            live_data["player_index"] + 1
+                        ) % len(live_data["players"])
+
                         room_ref.update({
                             "feedback": f"{st.session_state.my_name} guessed too low.",
-                            "guesses_taken": live_data["guesses_taken"] + 1
+                            "guesses_taken": live_data["guesses_taken"] + 1,
+                            "player_index": next_player_index
                         })
 
                         st.rerun()
@@ -266,9 +267,14 @@ else:
 
                         st.info("📉 Too high!")
 
+                        next_player_index = (
+                            live_data["player_index"] + 1
+                        ) % len(live_data["players"])
+
                         room_ref.update({
                             "feedback": f"{st.session_state.my_name} guessed too high.",
-                            "guesses_taken": live_data["guesses_taken"] + 1
+                            "guesses_taken": live_data["guesses_taken"] + 1,
+                            "player_index": next_player_index
                         })
 
                         st.rerun()
