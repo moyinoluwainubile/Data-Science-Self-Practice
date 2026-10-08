@@ -212,10 +212,14 @@ else:
         # GAME
         # -----------------------------
         elif live_data["status"] == "playing":
-
             st.subheader(f"🎮 Round {live_data['round_number']}")
-
             st.write(f"Players: {', '.join(live_data['players'])}")
+            st.divider()
+
+            st.write("### 🏆 Current Scores")
+
+            for player, score in live_data["scores"].items():
+                st.write(f"**{player}:** {score} point(s)")
 
             st.divider()
 
