@@ -286,9 +286,33 @@ else:
                         updated_attempts = live_data["player_attempts"].copy()
                         updated_attempts[st.session_state.my_name] = attempts_used
 
-                        next_player_index = (
-                            live_data["player_index"] + 1
-                        ) % len(live_data["players"])
+                        available_players = [
+                            i
+                            for i, player in enumerate(live_data["players"])
+                            if updated_attempts.get(player, 0) < 3
+                        ]
+
+                        if not available_players:
+                            room_ref.update({
+                                "feedback": (
+                                    "No player guessed the number within 3 attempts each."
+                                ),
+                                "player_attempts": updated_attempts,
+                                "status": "finished"
+                            })
+                            st.rerun()
+
+                        current_index = live_data["player_index"]
+
+                        remaining_indices = [
+                            i for i in available_players
+                            if i != current_index
+                        ]
+
+                        if remaining_indices:
+                            next_player_index = remaining_indices[0]
+                        else:
+                            next_player_index = available_players[0]
 
                         room_ref.update({
                             "feedback": (
@@ -313,9 +337,33 @@ else:
                         updated_attempts = live_data["player_attempts"].copy()
                         updated_attempts[st.session_state.my_name] = attempts_used
 
-                        next_player_index = (
-                            live_data["player_index"] + 1
-                        ) % len(live_data["players"])
+                        available_players = [
+                            i
+                            for i, player in enumerate(live_data["players"])
+                            if updated_attempts.get(player, 0) < 3
+                        ]
+
+                        if not available_players:
+                            room_ref.update({
+                                "feedback": (
+                                    "No player guessed the number within 3 attempts each."
+                                ),
+                                "player_attempts": updated_attempts,
+                                "status": "finished"
+                            })
+                            st.rerun()
+
+                        current_index = live_data["player_index"]
+
+                        remaining_indices = [
+                            i for i in available_players
+                            if i != current_index
+                        ]
+
+                        if remaining_indices:
+                            next_player_index = remaining_indices[0]
+                        else:
+                            next_player_index = available_players[0]
 
                         room_ref.update({
                             "feedback": (
