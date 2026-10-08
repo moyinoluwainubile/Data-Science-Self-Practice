@@ -308,11 +308,12 @@ else:
                             current_index + 1
                         ) % len(live_data["players"])
 
-                        while (
-                            updated_attempts.get(
+                        for _ in range(len(live_data["players"])):
+                            if updated_attempts.get(
                                 live_data["players"][next_player_index], 0
-                            ) >= 3
-                        ):
+                            ) < 3:
+                                break
+
                             next_player_index = (
                                 next_player_index + 1
                             ) % len(live_data["players"])
@@ -362,11 +363,12 @@ else:
                             current_index + 1
                         ) % len(live_data["players"])
 
-                        while (
-                            updated_attempts.get(
+                        for _ in range(len(live_data["players"])):
+                            if updated_attempts.get(
                                 live_data["players"][next_player_index], 0
-                            ) >= 3
-                        ):
+                            ) < 3:
+                                break
+
                             next_player_index = (
                                 next_player_index + 1
                             ) % len(live_data["players"])
