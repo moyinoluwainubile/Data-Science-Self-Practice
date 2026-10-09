@@ -175,10 +175,6 @@ else:
     # Sidebar details
     st.sidebar.markdown(f"### 📍 Room Code: **{st.session_state.room_code}**")
     st.sidebar.markdown(f"**Your Profile Name:** {st.session_state.my_name}")
-    
-    if st.sidebar.button("Leave Room 🏠"):
-        del st.session_state.room_active
-        st.rerun()
 
     # --- REAL-TIME GAME INTERFACE CONTAINER ---
     # We wrap the entire status and turn view inside ONE fragment function.
@@ -219,6 +215,7 @@ else:
 
             st.session_state.room_code = None
             st.session_state.my_name = None
+            st.session_state.room_active = False
             st.rerun()
 
         # -----------------------------
