@@ -459,27 +459,28 @@ else:
 
             st.write("### 🔄 What would you like to do?")
 
-            if st.button("🎮 Play Another Round", type="primary"):
-                new_secret = random.randint(1, 15)
+            if live_data["players"][0] == st.session_state.my_name:
+                if st.button("🎮 Play Another Round", type="primary"):
+                    new_secret = random.randint(1, 15)
+                    reset_attempts = {
+                        player: 0
+                        for player in live_data["players"]
+                    }
 
-                reset_attempts = {
-                    player: 0
-                    for player in live_data["players"]
-                }
-
-                room_ref.update({
-                    "secret_number": new_secret,
-                    "player_attempts": reset_attempts,
-                    "guesses_taken": 0,
-                    "player_index": 0,
-                    "round_number": live_data["round_number"] + 1,
-                    "feedback": "New round started!",
-                    "status": "playing",
-                    "winner": None,
-                    "winning_attempts": None
-                })
-
-                st.rerun()
+                    room_ref.update({
+                        "secret_number": new_secret,
+                        "player_attempts": reset_attempts,
+                        "guesses_taken": 0,
+                        "player_index": 0,
+                        "round_number": live_data["round_number"] + 1,
+                        "feedback": "New round started!",
+                        "status": "playing",
+                        "winner": None,
+                        "winning_attempts": None
+                    })
+                    st.rerun()
+            else:
+                st.info("⏳ Waiting for the host to start the next round.")
 
             if st.button("🚪 End Game"):
                 st.info("Thanks for playing! 🎮")
