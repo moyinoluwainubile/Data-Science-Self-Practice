@@ -215,7 +215,7 @@ else:
 
             st.session_state.room_code = None
             st.session_state.my_name = None
-            st.session_state.room_active = False
+            del st.session_state.room_active
             st.rerun()
 
         # -----------------------------
