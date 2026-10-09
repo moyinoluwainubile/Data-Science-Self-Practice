@@ -118,7 +118,7 @@ if "room_active" not in st.session_state:
             
             if choice == "Create New Game Room (Host)":
                 # The Host initializes the shared memory state parameters
-                secret = random.randint(1, 50)
+                secret = random.randint(1, 15)
                 room_ref.set({
                     "players": [my_name],
                     "scores": {my_name: 0},
@@ -194,6 +194,33 @@ else:
 
         st.sidebar.write("Connected Players:", ", ".join(live_data["players"]))
 
+        if st.sidebar.button("🚪 Leave Room"):
+            leaving_player = st.session_state.my_name
+
+            if leaving_player in live_data["players"]:
+                updated_players = [
+                    player
+                    for player in live_data["players"]
+                    if player != leaving_player
+                ]
+
+                updated_scores = live_data["scores"].copy()
+                updated_scores.pop(leaving_player, None)
+
+                updated_attempts = live_data["player_attempts"].copy()
+                updated_attempts.pop(leaving_player, None)
+
+                room_ref.update({
+                    "players": updated_players,
+                    "scores": updated_scores,
+                    "player_attempts": updated_attempts,
+                    "max_attempts": len(updated_players) * 3
+                })
+
+            st.session_state.room_code = None
+            st.session_state.my_name = None
+            st.rerun()
+
         # -----------------------------
         # LOBBY
         # -----------------------------
@@ -225,7 +252,7 @@ else:
                     f"**{player}:** {score} point(s) · "
                     f"{attempts_used}/3 attempts"
                 )
-                
+
             st.divider()
 
             current_player = live_data["players"][live_data["player_index"]]
@@ -242,12 +269,12 @@ else:
 
                 st.write(f"🎯 Attempts remaining: **{attempts_remaining} / 3**")
 
-                st.write("Guess a number between **1 and 50**.")
+                st.write("Guess a number between **1 and 15**.")
 
                 guess = st.number_input(
                     "Your Guess",
                     min_value=1,
-                    max_value=50,
+                    max_value=15,
                     step=1,
                     key="current_guess"
                 )
@@ -436,7 +463,7 @@ else:
             st.write("### 🔄 What would you like to do?")
 
             if st.button("🎮 Play Another Round", type="primary"):
-                new_secret = random.randint(1, 50)
+                new_secret = random.randint(1, 15)
 
                 reset_attempts = {
                     player: 0
