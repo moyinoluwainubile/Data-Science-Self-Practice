@@ -97,8 +97,25 @@ def get_db():
         st.error(f"Firebase error: {e}")
         return None
 db = get_db()
-
 st.title("🏆 Live Number Guessing Game")
+
+DIFFICULTY_SETTINGS = {
+    "Easy": {
+        "min_number": 1,
+        "max_number": 50,
+        "attempts": 5,
+    },
+    "Medium": {
+        "min_number": 1,
+        "max_number": 100,
+        "attempts": 4,
+    },
+    "Hard": {
+        "min_number": 1,
+        "max_number": 200,
+        "attempts": 3,
+    },
+}
 
 # --- INITIAL SETUP SCREEN ---
 if "room_active" not in st.session_state:
@@ -108,14 +125,25 @@ if "room_active" not in st.session_state:
     my_name = st.text_input("Your Player Name:", value="Player").strip()
     
     choice = st.radio("Choose Action:", ["Create New Game Room (Host)", "Join Existing Game Room"])
-    
+    if choice == "Create New Game Room (Host)":
+        difficulty = st.selectbox(
+            "Choose Difficulty",
+            ["Easy", "Medium", "Hard"],
+            index=1,
+            help=(
+                "Easy: 1–50, 5 attempts. "
+                "Medium: 1–100, 4 attempts. "
+                "Hard: 1–200, 3 attempts."
+            ),
+        )
+
     if st.button("Connect to Lobby 🚀", type="primary"):
         if not room_code or not my_name:
             st.warning("Please fill in both fields.")
         else:
             room_ref = db.collection("guessing_rooms").document(room_code)
             room_data = room_ref.get()
-            
+
             if choice == "Create New Game Room (Host)":
                 if room_data.exists:
                     st.error(
@@ -123,7 +151,13 @@ if "room_active" not in st.session_state:
                         "Please choose another code."
                     )
                 else:
-                    secret = random.randint(1,100)
+                    settings = DIFFICULTY_SETTINGS[difficulty]
+                    attempts_per_player = settings["attempts"]
+
+                    secret = random.randint(
+                        settings["min_number"],
+                        settings["max_number"],
+                    )
 
                     room_ref.set({
                         "players": [my_name],
@@ -131,19 +165,26 @@ if "room_active" not in st.session_state:
                         "secret_number": secret,
                         "guesses_taken": 0,
                         "player_attempts": {my_name: 0},
-                        "max_attempts": 4, # Will scale when players join
+                        "difficulty": difficulty,
+                        "number_min": settings["min_number"],
+                        "number_max": settings["max_number"],
+                        "attempts_per_player": attempts_per_player,
+                        "max_attempts": attempts_per_player,
                         "player_index": 0,
-                        "feedback": "Room created. Waiting for players to join...",
+                        "feedback": (
+                            "Room created. Waiting for players to join..."
+                        ),
                         "round_number": 1,
-                        "status": "lobby"
+                        "status": "lobby",
                     })
+
                     st.session_state.room_code = room_code
                     st.session_state.my_name = my_name
                     st.session_state.room_active = True
                     st.rerun()
-                
+
             else:
-                # The Joiner attaches their profile to the existing database keys
+                # The joiner attaches their profile to the existing room.
                 if room_data.exists:
                     data = room_data.to_dict()
 
@@ -163,17 +204,26 @@ if "room_active" not in st.session_state:
                         data["players"].append(my_name)
                         data["scores"][my_name] = 0
                         data["player_attempts"][my_name] = 0
-                        data["max_attempts"] = len(data["players"]) * 4
+
+                        attempts_per_player = data.get(
+                            "attempts_per_player", 4
+                        )
+                        data["max_attempts"] = (
+                            len(data["players"]) * attempts_per_player
+                        )
+
                         room_ref.update({
                             "players": data["players"],
                             "scores": data["scores"],
                             "player_attempts": data["player_attempts"],
-                            "max_attempts": data["max_attempts"]
+                            "max_attempts": data["max_attempts"],
                         })
+
                         st.session_state.room_code = room_code
                         st.session_state.my_name = my_name
                         st.session_state.room_active = True
                         st.rerun()
+
                 else:
                     st.error("Room code not found! Check with the host.")
 
@@ -204,6 +254,19 @@ else:
 
         if not live_data:
             st.stop()
+        difficulty = live_data.get("difficulty", "Medium")
+        settings = DIFFICULTY_SETTINGS.get(
+            difficulty, DIFFICULTY_SETTINGS["Medium"]
+        )
+        number_min = live_data.get(
+            "number_min", settings["min_number"]
+        )
+        number_max = live_data.get(
+            "number_max", settings["max_number"]
+        )
+        attempts_per_player = live_data.get(
+            "attempts_per_player", settings["attempts"]
+        )
 
         st.sidebar.write("Connected Players:", ", ".join(live_data["players"]))
 
@@ -250,7 +313,8 @@ else:
                         "players": updated_players,
                         "scores": updated_scores,
                         "player_attempts": updated_attempts,
-                        "max_attempts": len(updated_players) * 4
+                        "max_attempts": len(updated_players) * attempts_per_player,
+                        "player_index": next_index,
                     })
 
             st.session_state.room_code = None
@@ -273,6 +337,11 @@ else:
 
             st.info(
                 f"📍 Room Code: {st.session_state.room_code}"
+            )
+            st.write(
+                f"**Difficulty:** {difficulty} "
+                f"({number_min}–{number_max}; "
+                f"{attempts_per_player} attempts per player)"
             )
 
             st.write(
@@ -313,6 +382,10 @@ else:
         # -----------------------------
         elif live_data["status"] == "playing":
             st.subheader(f"🎮 Round {live_data['round_number']}")
+            st.write(
+                f"**Difficulty:** {difficulty} · "
+                f"Number range: {number_min}–{number_max}"
+            )
             st.write(f"Players: {', '.join(live_data['players'])}")
             st.divider()
 
@@ -323,7 +396,7 @@ else:
 
                 st.write(
                     f"**{player}:** {score} point(s) · "
-                    f"{attempts_used}/4 attempts"
+                    f"{attempts_used}/{attempts_per_player} attempts"
                 )
 
             st.divider()
@@ -338,18 +411,21 @@ else:
                      st.session_state.my_name, 0
                     )
                 
-                attempts_remaining = 4 - attempts_used
+                attempts_remaining = attempts_per_player - attempts_used
 
-                st.write(f"🎯 Attempts remaining: **{attempts_remaining} / 4**")
-
-                st.write("Guess a number between **1 and 100**.")
-
+                st.write(
+                    f"🎯 Attempts remaining: "
+                    f"**{attempts_remaining} / {attempts_per_player}**"
+                )
+                st.write(
+                    f"Guess a number between **{number_min} and {number_max}**."
+                )
                 guess = st.number_input(
                     "Your Guess",
-                    min_value=1,
-                    max_value=100,
+                    min_value=number_min,
+                    max_value=number_max,
                     step=1,
-                    key="current_guess"
+                    key="current_guess",
                 )
 
                 if st.button("Submit Guess 🎯", type="primary"):
@@ -398,13 +474,14 @@ else:
                         available_players = [
                             i
                             for i, player in enumerate(live_data["players"])
-                            if updated_attempts.get(player, 0) < 4
+                            if updated_attempts.get(player, 0) < attempts_per_player
                         ]
 
                         if not available_players:
                             room_ref.update({
                                 "feedback": (
-                                    "No player guessed the number within 4 attempts each."
+                                    f"No player guessed the number within "
+                                    f"{attempts_per_player} attempts each."
                                 ),
                                 "player_attempts": updated_attempts,
                                 "status": "finished"
@@ -420,7 +497,7 @@ else:
                         for _ in range(len(live_data["players"])):
                             if updated_attempts.get(
                                 live_data["players"][next_player_index], 0
-                            ) < 4:
+                            ) < attempts_per_player:
                                 break
 
                             next_player_index = (
@@ -430,7 +507,7 @@ else:
                         room_ref.update({
                             "feedback": (
                                 f"{st.session_state.my_name} made a wrong guess. "
-                                f"Attempt {attempts_used} of 4."
+                                f"Attempt {attempts_used} of {attempts_per_player}."
                             ),
                             "guesses_taken": live_data["guesses_taken"] + 1,
                             "player_attempts": updated_attempts,
@@ -453,13 +530,14 @@ else:
                         available_players = [
                             i
                             for i, player in enumerate(live_data["players"])
-                            if updated_attempts.get(player, 0) < 4
+                            if updated_attempts.get(player, 0) < attempts_per_player
                         ]
 
                         if not available_players:
                             room_ref.update({
                                 "feedback": (
-                                    "No player guessed the number within 4 attempts each."
+                                    f"No player guessed the number within "
+                                    f"{attempts_per_player} attempts each."
                                 ),
                                 "player_attempts": updated_attempts,
                                 "status": "finished"
@@ -475,7 +553,7 @@ else:
                         for _ in range(len(live_data["players"])):
                             if updated_attempts.get(
                                 live_data["players"][next_player_index], 0
-                            ) < 4:
+                            ) < attempts_per_player:
                                 break
 
                             next_player_index = (
@@ -485,7 +563,7 @@ else:
                         room_ref.update({
                             "feedback": (
                                 f"{st.session_state.my_name} made a wrong guess. "
-                                f"Attempt {attempts_used} of 4."
+                                f"Attempt {attempts_used} of {attempts_per_player}."
                             ),
                             "guesses_taken": live_data["guesses_taken"] + 1,
                             "player_attempts": updated_attempts,
@@ -537,7 +615,7 @@ else:
 
             if live_data["players"][0] == st.session_state.my_name:
                 if st.button("🎮 Play Another Round", type="primary"):
-                    new_secret = random.randint(1, 100)
+                    new_secret = random.randint(number_min, number_max)
                     reset_attempts = {
                         player: 0
                         for player in live_data["players"]
@@ -602,7 +680,7 @@ else:
                             "players": updated_players,
                             "scores": updated_scores,
                             "player_attempts": updated_attempts,
-                            "max_attempts": len(updated_players) * 4,
+                            "max_attempts": len(updated_players) * attempts_per_player,
                             "player_index": next_index
                         })
 
