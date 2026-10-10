@@ -118,7 +118,7 @@ if "room_active" not in st.session_state:
             
             if choice == "Create New Game Room (Host)":
                 # The Host initializes the shared memory state parameters
-                secret = random.randint(1, 15)
+                secret = random.randint(1,100)
                 room_ref.set({
                     "players": [my_name],
                     "scores": {my_name: 0},
@@ -223,7 +223,10 @@ else:
         # -----------------------------
         if live_data["status"] == "lobby":
 
-            st.info("⌛ Waiting for the Host to lock the room and start the match...")
+            st.info(
+                f"⌛ Waiting for the host to start the match. "
+                f"Players in room: {len(live_data['players'])}"
+            )
 
             # Only the host can start the game
             if live_data["players"][0] == st.session_state.my_name:
@@ -266,12 +269,12 @@ else:
 
                 st.write(f"🎯 Attempts remaining: **{attempts_remaining} / 3**")
 
-                st.write("Guess a number between **1 and 15**.")
+                st.write("Guess a number between **1 and 100**.")
 
                 guess = st.number_input(
                     "Your Guess",
                     min_value=1,
-                    max_value=15,
+                    max_value=100,
                     step=1,
                     key="current_guess"
                 )
@@ -310,7 +313,7 @@ else:
 
                     elif guess < secret_number:
 
-                        st.info("❌ Wrong guess!")
+                        st.info("❌ Too low!")
 
                         attempts_used = live_data["player_attempts"].get(
                             st.session_state.my_name, 0
@@ -365,7 +368,7 @@ else:
 
                     else:
 
-                        st.info("❌ Wrong guess!")
+                        st.info("❌ Too high!")
 
                         attempts_used = live_data["player_attempts"].get(
                             st.session_state.my_name, 0
@@ -461,7 +464,7 @@ else:
 
             if live_data["players"][0] == st.session_state.my_name:
                 if st.button("🎮 Play Another Round", type="primary"):
-                    new_secret = random.randint(1, 15)
+                    new_secret = random.randint(1, 100)
                     reset_attempts = {
                         player: 0
                         for player in live_data["players"]
