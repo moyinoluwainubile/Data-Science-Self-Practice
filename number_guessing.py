@@ -117,16 +117,141 @@ DIFFICULTY_SETTINGS = {
     },
 }
 
-# --- INITIAL SETUP SCREEN ---
-if "room_active" not in st.session_state:
-    st.subheader("🏠 Multi-Device Matchmaking Room")
-    
-    room_code = st.text_input("Enter 4-Digit Room Code (e.g., A7B9):", value="1234").upper().strip()
-    my_name = st.text_input("Your Player Name:", value="Player").strip()
-    
-    choice = st.radio("Choose Action:", ["Create New Game Room (Host)", "Join Existing Game Room"])
-    if choice == "Create New Game Room (Host)":
-        difficulty = st.selectbox(
+
+# --- GAME MODE ROUTING ---
+if st.session_state.get("solo_active"):
+
+    # -----------------------------
+    # SINGLE-PLAYER GAME
+    # -----------------------------
+    st.subheader("🎯 Single-Player Mode")
+
+    difficulty = st.session_state.solo_difficulty
+    settings = DIFFICULTY_SETTINGS[difficulty]
+
+    number_min = settings["min_number"]
+    number_max = settings["max_number"]
+    attempts_limit = settings["attempts"]
+
+    st.write(f"**Difficulty:** {difficulty}")
+    st.write(f"**Number range:** {number_min}–{number_max}")
+    st.write(f"**Attempts allowed:** {attempts_limit}")
+    st.divider()
+
+    if st.session_state.solo_status == "playing":
+
+        attempts_used = st.session_state.solo_attempts_used
+        attempts_remaining = attempts_limit - attempts_used
+
+        st.write(
+            f"🎯 **Attempts remaining:** "
+            f"{attempts_remaining} / {attempts_limit}"
+        )
+
+        st.write(
+            f"Guess a number between **{number_min} and {number_max}**."
+        )
+
+        guess = st.number_input(
+            "Your Guess",
+            min_value=number_min,
+            max_value=number_max,
+            step=1,
+            key="solo_guess",
+        )
+
+        if st.button("Submit Guess 🎯", type="primary", key="solo_submit"):
+
+            attempts_used += 1
+            st.session_state.solo_attempts_used = attempts_used
+
+            secret_number = st.session_state.solo_secret_number
+
+            if guess == secret_number:
+                st.session_state.solo_status = "won"
+                st.session_state.solo_feedback = (
+                    f"🎉 Correct! You guessed the number in "
+                    f"{attempts_used} attempt(s)!"
+                )
+
+            elif guess < secret_number:
+                st.session_state.solo_feedback = "❌ Too low!"
+
+                if attempts_used >= attempts_limit:
+                    st.session_state.solo_status = "lost"
+
+            else:
+                st.session_state.solo_feedback = "❌ Too high!"
+
+                if attempts_used >= attempts_limit:
+                    st.session_state.solo_status = "lost"
+
+            st.rerun()
+
+        if st.session_state.get("solo_feedback"):
+            st.info(st.session_state.solo_feedback)
+
+    elif st.session_state.solo_status == "won":
+
+        st.success(st.session_state.solo_feedback)
+        st.write(
+            f"The secret number was **"
+            f"{st.session_state.solo_secret_number}**."
+        )
+
+        if st.button("🔄 Play Again", type="primary", key="solo_replay"):
+            st.session_state.solo_secret_number = random.randint(
+                number_min, number_max
+            )
+            st.session_state.solo_attempts_used = 0
+            st.session_state.solo_status = "playing"
+            st.session_state.solo_feedback = ""
+            st.rerun()
+
+    else:
+
+        st.error("😮 You've used all your attempts!")
+
+        st.write(
+            f"The secret number was **"
+            f"{st.session_state.solo_secret_number}**."
+        )
+
+        if st.button("🔄 Try Again", type="primary", key="solo_retry"):
+            st.session_state.solo_secret_number = random.randint(
+                number_min, number_max
+            )
+            st.session_state.solo_attempts_used = 0
+            st.session_state.solo_status = "playing"
+            st.session_state.solo_feedback = ""
+            st.rerun()
+
+    st.divider()
+
+    if st.button("🏠 Back to Game Menu", key="solo_menu"):
+        del st.session_state.solo_active
+        st.rerun()
+
+
+# -----------------------------
+# GAME SETUP / MULTIPLAYER
+# -----------------------------
+elif "room_active" not in st.session_state:
+
+    st.subheader("🎮 Choose Your Game Mode")
+
+    game_mode = st.radio(
+        "How would you like to play?",
+        ["Single-Player", "Multiplayer"],
+        index=1,
+        key="game_mode_choice",
+    )
+
+    if game_mode == "Single-Player":
+
+        st.write("Play on your own against the computer.")
+
+        solo_difficulty = st.selectbox(
             "Choose Difficulty",
             ["Easy", "Medium", "Hard"],
             index=1,
@@ -135,88 +260,111 @@ if "room_active" not in st.session_state:
                 "Medium: 1–100, 4 attempts. "
                 "Hard: 1–200, 3 attempts."
             ),
+            key="solo_setup_difficulty",
         )
 
-    if st.button("Connect to Lobby 🚀", type="primary"):
-        if not room_code or not my_name:
-            st.warning("Please fill in both fields.")
-        else:
-            room_ref = db.collection("guessing_rooms").document(room_code)
-            room_data = room_ref.get()
+        if st.button(
+            "Start Single-Player Game 🎯",
+            type="primary",
+            key="start_solo_game",
+        ):
 
-            if choice == "Create New Game Room (Host)":
-                if room_data.exists:
-                    st.error(
-                        "That room code is already in use. "
-                        "Please choose another code."
-                    )
-                else:
-                    settings = DIFFICULTY_SETTINGS[difficulty]
-                    attempts_per_player = settings["attempts"]
+            settings = DIFFICULTY_SETTINGS[solo_difficulty]
 
-                    secret = random.randint(
-                        settings["min_number"],
-                        settings["max_number"],
-                    )
+            st.session_state.solo_difficulty = solo_difficulty
+            st.session_state.solo_secret_number = random.randint(
+                settings["min_number"],
+                settings["max_number"],
+            )
+            st.session_state.solo_attempts_used = 0
+            st.session_state.solo_status = "playing"
+            st.session_state.solo_feedback = ""
+            st.session_state.solo_active = True
 
-                    room_ref.set({
-                        "players": [my_name],
-                        "scores": {my_name: 0},
-                        "secret_number": secret,
-                        "guesses_taken": 0,
-                        "player_attempts": {my_name: 0},
-                        "difficulty": difficulty,
-                        "number_min": settings["min_number"],
-                        "number_max": settings["max_number"],
-                        "attempts_per_player": attempts_per_player,
-                        "max_attempts": attempts_per_player,
-                        "player_index": 0,
-                        "feedback": (
-                            "Room created. Waiting for players to join..."
-                        ),
-                        "round_number": 1,
-                        "status": "lobby",
-                    })
+            st.rerun()
 
-                    st.session_state.room_code = room_code
-                    st.session_state.my_name = my_name
-                    st.session_state.room_active = True
-                    st.rerun()
+    else:
+
+        st.subheader("🏠 Multi-Device Matchmaking Room")
+
+        room_code = st.text_input(
+            "Enter 4-Digit Room Code (e.g., A7B9):",
+            value="1234",
+        ).upper().strip()
+
+        my_name = st.text_input(
+            "Your Player Name:",
+            value="Player",
+        ).strip()
+
+        choice = st.radio(
+            "Choose Action:",
+            [
+                "Create New Game Room (Host)",
+                "Join Existing Game Room",
+            ],
+        )
+
+        if choice == "Create New Game Room (Host)":
+
+            difficulty = st.selectbox(
+                "Choose Difficulty",
+                ["Easy", "Medium", "Hard"],
+                index=1,
+                help=(
+                    "Easy: 1–50, 5 attempts. "
+                    "Medium: 1–100, 4 attempts. "
+                    "Hard: 1–200, 3 attempts."
+                ),
+            )
+
+        if st.button("Connect to Lobby 🚀", type="primary"):
+
+            if not room_code or not my_name:
+                st.warning("Please fill in both fields.")
 
             else:
-                # The joiner attaches their profile to the existing room.
-                if room_data.exists:
-                    data = room_data.to_dict()
 
-                    if not data.get("players"):
-                        st.error("This room is empty or unavailable.")
+                room_ref = db.collection("guessing_rooms").document(
+                    room_code
+                )
+                room_data = room_ref.get()
 
-                    elif data.get("status") != "lobby":
+                if choice == "Create New Game Room (Host)":
+
+                    if room_data.exists:
                         st.error(
-                            "This game has already started or finished. "
-                            "You can only join rooms before the match begins."
+                            "That room code is already in use. "
+                            "Please choose another code."
                         )
-
-                    elif my_name in data["players"]:
-                        st.error("That name is already taken in this room!")
 
                     else:
-                        data["players"].append(my_name)
-                        data["scores"][my_name] = 0
-                        data["player_attempts"][my_name] = 0
 
-                        attempts_per_player = data.get(
-                            "attempts_per_player", 4
-                        )
-                        data["max_attempts"] = (
-                            len(data["players"]) * attempts_per_player
+                        settings = DIFFICULTY_SETTINGS[difficulty]
+                        attempts_per_player = settings["attempts"]
+
+                        secret = random.randint(
+                            settings["min_number"],
+                            settings["max_number"],
                         )
 
-                        room_ref.update({
-                            "players": data["players"],
-                            "scores": data["scores"],
-                            "player_attempts": data["player_attempts"],
-                            "max_attempts": data["max_attempts"],
+                        room_ref.set({
+                            "players": [my_name],
+                            "scores": {my_name: 0},
+                            "secret_number": secret,
+                            "guesses_taken": 0,
+                            "player_attempts": {my_name: 0},
+                            "difficulty": difficulty,
+                            "number_min": settings["min_number"],
+                            "number_max": settings["max_number"],
+                            "attempts_per_player": attempts_per_player,
+                            "max_attempts": attempts_per_player,
+                            "player_index": 0,
+                            "feedback": (
+                                "Room created. Waiting for players to join..."
+                            ),
+                            "round_number": 1,
+                            "status": "lobby",
                         })
 
                         st.session_state.room_code = room_code
@@ -225,7 +373,52 @@ if "room_active" not in st.session_state:
                         st.rerun()
 
                 else:
-                    st.error("Room code not found! Check with the host.")
+
+                    if room_data.exists:
+
+                        data = room_data.to_dict()
+
+                        if not data.get("players"):
+                            st.error("This room is empty or unavailable.")
+
+                        elif data.get("status") != "lobby":
+                            st.error(
+                                "This game has already started or finished. "
+                                "You can only join rooms before the match begins."
+                            )
+
+                        elif my_name in data["players"]:
+                            st.error(
+                                "That name is already taken in this room!"
+                            )
+
+                        else:
+
+                            data["players"].append(my_name)
+                            data["scores"][my_name] = 0
+                            data["player_attempts"][my_name] = 0
+
+                            attempts_per_player = data.get(
+                                "attempts_per_player", 4
+                            )
+                            data["max_attempts"] = (
+                                len(data["players"]) * attempts_per_player
+                            )
+
+                            room_ref.update({
+                                "players": data["players"],
+                                "scores": data["scores"],
+                                "player_attempts": data["player_attempts"],
+                                "max_attempts": data["max_attempts"],
+                            })
+
+                            st.session_state.room_code = room_code
+                            st.session_state.my_name = my_name
+                            st.session_state.room_active = True
+                            st.rerun()
+
+                    else:
+                        st.error("Room code not found! Check with the host.")
 
 # --- ACTIVE REAL-TIME GAMEPLAY SCREEN ---
 else:
