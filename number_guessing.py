@@ -117,31 +117,48 @@ if "room_active" not in st.session_state:
             room_data = room_ref.get()
             
             if choice == "Create New Game Room (Host)":
-                # The Host initializes the shared memory state parameters
-                secret = random.randint(1,100)
-                room_ref.set({
-                    "players": [my_name],
-                    "scores": {my_name: 0},
-                    "secret_number": secret,
-                    "guesses_taken": 0,
-                    "player_attempts": {my_name: 0},
-                    "max_attempts": 6, # Will scale when players join
-                    "player_index": 0,
-                    "feedback": "Room created. Waiting for players to join...",
-                    "round_number": 1,
-                    "status": "lobby"
-                })
-                st.session_state.room_code = room_code
-                st.session_state.my_name = my_name
-                st.session_state.room_active = True
-                st.rerun()
+                if room_data.exists:
+                    st.error(
+                        "That room code is already in use. "
+                        "Please choose another code."
+                    )
+                else:
+                    secret = random.randint(1,100)
+
+                    room_ref.set({
+                        "players": [my_name],
+                        "scores": {my_name: 0},
+                        "secret_number": secret,
+                        "guesses_taken": 0,
+                        "player_attempts": {my_name: 0},
+                        "max_attempts": 4, # Will scale when players join
+                        "player_index": 0,
+                        "feedback": "Room created. Waiting for players to join...",
+                        "round_number": 1,
+                        "status": "lobby"
+                    })
+                    st.session_state.room_code = room_code
+                    st.session_state.my_name = my_name
+                    st.session_state.room_active = True
+                    st.rerun()
                 
             else:
                 # The Joiner attaches their profile to the existing database keys
                 if room_data.exists:
                     data = room_data.to_dict()
-                    if my_name in data["players"]:
+
+                    if not data.get("players"):
+                        st.error("This room is empty or unavailable.")
+
+                    elif data.get("status") != "lobby":
+                        st.error(
+                            "This game has already started or finished. "
+                            "You can only join rooms before the match begins."
+                        )
+
+                    elif my_name in data["players"]:
                         st.error("That name is already taken in this room!")
+
                     else:
                         data["players"].append(my_name)
                         data["scores"][my_name] = 0
@@ -200,18 +217,41 @@ else:
                     if player != leaving_player
                 ]
 
-                updated_scores = live_data["scores"].copy()
-                updated_scores.pop(leaving_player, None)
+                if not updated_players:
+                    room_ref.delete()
+                else:
+                    updated_scores = live_data["scores"].copy()
+                    updated_scores.pop(leaving_player, None)
 
-                updated_attempts = live_data["player_attempts"].copy()
-                updated_attempts.pop(leaving_player, None)
+                    updated_attempts = live_data["player_attempts"].copy()
+                    updated_attempts.pop(leaving_player, None)
 
-                room_ref.update({
-                    "players": updated_players,
-                    "scores": updated_scores,
-                    "player_attempts": updated_attempts,
-                    "max_attempts": len(updated_players) * 4
-                })
+                    current_index = live_data.get("player_index", 0)
+
+                    if not isinstance(current_index, int):
+                        current_index = 0
+
+                    current_index = max(0, current_index)
+
+                    current_player = (
+                        live_data["players"][current_index]
+                        if current_index < len(live_data["players"])
+                        else None
+                    )
+
+                    if current_player == leaving_player:
+                        next_index = current_index % len(updated_players)
+                    elif current_player in updated_players:
+                        next_index = updated_players.index(current_player)
+                    else:
+                        next_index = 0
+
+                    room_ref.update({
+                        "players": updated_players,
+                        "scores": updated_scores,
+                        "player_attempts": updated_attempts,
+                        "max_attempts": len(updated_players) * 4
+                    })
 
             st.session_state.room_code = None
             st.session_state.my_name = None
@@ -222,18 +262,51 @@ else:
         # LOBBY
         # -----------------------------
         if live_data["status"] == "lobby":
+            st.subheader("🏠 Game Lobby")
+
+            if not live_data["players"]:
+                st.warning(
+                    "No players remain in this room. "
+                    "Please return to setup and create a new room."
+                )
+                st.stop()
 
             st.info(
-                f"⌛ Waiting for the host to start the match. "
-                f"Players in room: {len(live_data['players'])}"
+                f"📍 Room Code: {st.session_state.room_code}"
             )
 
-            # Only the host can start the game
-            if live_data["players"][0] == st.session_state.my_name:
+            st.write(
+                f"👥 **Players in the room:** "
+                f"{len(live_data['players'])}"
+            )
 
-                if st.button("Lock Room & Start Game 🎮", type="primary"):
+            st.write("### 🧑‍🤝‍🧑 Joined Players")
+
+            for index, player in enumerate(live_data["players"]):
+                if index == 0:
+                    st.write(f"👑 **{player}** — Host")
+                else:
+                    st.write(f"🎮 {player}")
+
+            st.divider()
+
+            if live_data["players"] and live_data["players"][0] == st.session_state.my_name:
+                st.success(
+                    f"You're the host. {len(live_data['players'])} "
+                    f"player(s) have joined. Start the match when everyone is ready."
+                )
+
+                if st.button(
+                    "Lock Room & Start Game 🎮",
+                    type="primary"
+                ):
                     room_ref.update({"status": "playing"})
                     st.rerun()
+            else:
+                st.info(
+                    "⌛ Waiting for the host to start the match. "
+                    "You'll be able to play when the game begins."
+                )
 
         # -----------------------------
         # GAME
@@ -486,7 +559,57 @@ else:
                 st.info("⏳ Waiting for the host to start the next round.")
 
             if st.button("🚪 End Game"):
-                st.info("Thanks for playing! 🎮")
+                leaving_player = st.session_state.my_name
+
+                if leaving_player in live_data["players"]:
+                    updated_players = [
+                        player
+                        for player in live_data["players"]
+                        if player != leaving_player
+                    ]
+
+                    if not updated_players:
+                        room_ref.delete()
+
+                    else:
+                        updated_scores = live_data["scores"].copy()
+                        updated_scores.pop(leaving_player, None)
+
+                        updated_attempts = live_data["player_attempts"].copy()
+                        updated_attempts.pop(leaving_player, None)
+
+                        current_index = live_data.get("player_index", 0)
+
+                        if not isinstance(current_index, int):
+                            current_index = 0
+
+                        current_index = max(0, current_index)
+
+                        current_player = (
+                            live_data["players"][current_index]
+                            if current_index < len(live_data["players"])
+                            else None
+                        )
+
+                        if current_player == leaving_player:
+                            next_index = current_index % len(updated_players)
+                        elif current_player in updated_players:
+                            next_index = updated_players.index(current_player)
+                        else:
+                            next_index = 0
+
+                        room_ref.update({
+                            "players": updated_players,
+                            "scores": updated_scores,
+                            "player_attempts": updated_attempts,
+                            "max_attempts": len(updated_players) * 4,
+                            "player_index": next_index
+                        })
+
+                st.session_state.room_code = None
+                st.session_state.my_name = None
+                del st.session_state.room_active
+                st.rerun()
 
     # Execute the fragment container safely
     render_game_lobby()
