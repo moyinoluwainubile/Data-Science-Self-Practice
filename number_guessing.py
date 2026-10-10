@@ -146,7 +146,7 @@ if "room_active" not in st.session_state:
                         data["players"].append(my_name)
                         data["scores"][my_name] = 0
                         data["player_attempts"][my_name] = 0
-                        data["max_attempts"] = len(data["players"]) * 3
+                        data["max_attempts"] = len(data["players"]) * 4
                         room_ref.update({
                             "players": data["players"],
                             "scores": data["scores"],
@@ -210,7 +210,7 @@ else:
                     "players": updated_players,
                     "scores": updated_scores,
                     "player_attempts": updated_attempts,
-                    "max_attempts": len(updated_players) * 3
+                    "max_attempts": len(updated_players) * 4
                 })
 
             st.session_state.room_code = None
@@ -250,7 +250,7 @@ else:
 
                 st.write(
                     f"**{player}:** {score} point(s) · "
-                    f"{attempts_used}/3 attempts"
+                    f"{attempts_used}/4 attempts"
                 )
 
             st.divider()
@@ -265,9 +265,9 @@ else:
                      st.session_state.my_name, 0
                     )
                 
-                attempts_remaining = 3 - attempts_used
+                attempts_remaining = 4 - attempts_used
 
-                st.write(f"🎯 Attempts remaining: **{attempts_remaining} / 3**")
+                st.write(f"🎯 Attempts remaining: **{attempts_remaining} / 4**")
 
                 st.write("Guess a number between **1 and 100**.")
 
@@ -325,13 +325,13 @@ else:
                         available_players = [
                             i
                             for i, player in enumerate(live_data["players"])
-                            if updated_attempts.get(player, 0) < 3
+                            if updated_attempts.get(player, 0) < 4
                         ]
 
                         if not available_players:
                             room_ref.update({
                                 "feedback": (
-                                    "No player guessed the number within 3 attempts each."
+                                    "No player guessed the number within 4 attempts each."
                                 ),
                                 "player_attempts": updated_attempts,
                                 "status": "finished"
@@ -347,7 +347,7 @@ else:
                         for _ in range(len(live_data["players"])):
                             if updated_attempts.get(
                                 live_data["players"][next_player_index], 0
-                            ) < 3:
+                            ) < 4:
                                 break
 
                             next_player_index = (
@@ -357,7 +357,7 @@ else:
                         room_ref.update({
                             "feedback": (
                                 f"{st.session_state.my_name} made a wrong guess. "
-                                f"Attempt {attempts_used} of 3."
+                                f"Attempt {attempts_used} of 4."
                             ),
                             "guesses_taken": live_data["guesses_taken"] + 1,
                             "player_attempts": updated_attempts,
@@ -380,13 +380,13 @@ else:
                         available_players = [
                             i
                             for i, player in enumerate(live_data["players"])
-                            if updated_attempts.get(player, 0) < 3
+                            if updated_attempts.get(player, 0) < 4
                         ]
 
                         if not available_players:
                             room_ref.update({
                                 "feedback": (
-                                    "No player guessed the number within 3 attempts each."
+                                    "No player guessed the number within 4 attempts each."
                                 ),
                                 "player_attempts": updated_attempts,
                                 "status": "finished"
@@ -402,7 +402,7 @@ else:
                         for _ in range(len(live_data["players"])):
                             if updated_attempts.get(
                                 live_data["players"][next_player_index], 0
-                            ) < 3:
+                            ) < 4:
                                 break
 
                             next_player_index = (
@@ -412,7 +412,7 @@ else:
                         room_ref.update({
                             "feedback": (
                                 f"{st.session_state.my_name} made a wrong guess. "
-                                f"Attempt {attempts_used} of 3."
+                                f"Attempt {attempts_used} of 4."
                             ),
                             "guesses_taken": live_data["guesses_taken"] + 1,
                             "player_attempts": updated_attempts,
