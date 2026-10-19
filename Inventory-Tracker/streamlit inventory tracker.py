@@ -3,22 +3,43 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-if not firebase_admin._apps:
-    cred = credentials.Certificate(
-        dict(st.secrets["gcp_service_account"])
-    )
-    firebase_admin.initialize_app(cred)
-
-db = firestore.client()
-
 # Page setup
-st.set_page_config(page_title="Inventory Tracker", page_icon="📦", layout="centered")
+st.set_page_config(
+    page_title="Inventory Tracker",
+    page_icon="📦",
+    layout="centered",
+)
 
-# Empty inventory stored across Streamlit reruns
-if "inventories" not in st.session_state:
-    st.session_state.inventories = {}
+# Connect to Firebase
+@st.cache_resource
+def get_database():
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(
+            dict(st.secrets["gcp_service_account"])
+        )
+        firebase_admin.initialize_app(cred)
 
-inventories = st.session_state.inventories
+    return firestore.client()
+
+
+try:
+    db = get_database()
+    inventory_collection = db.collection("inventory_items")
+except Exception as e:
+    st.error("Could not connect to Firebase. Check your app Secrets.")
+    st.exception(e)
+    st.stop()
+
+
+# Load inventory from Firestore
+def load_inventory():
+    items = {}
+    for document in inventory_collection.stream():
+        items[document.id] = document.to_dict()
+    return items
+
+
+inventories = load_inventory()
 
 st.title("📦 Inventory Tracker")
 st.write("Add, remove, update, and monitor your inventory.")
@@ -34,6 +55,7 @@ menu = st.sidebar.selectbox(
     ],
 )
 
+
 # 1. Add inventory
 if menu == "Add Inventory":
     st.header("Add Inventory")
@@ -44,7 +66,10 @@ if menu == "Add Inventory":
             "Inventory Quantity", min_value=0, step=1
         )
         price = st.number_input(
-            "Inventory Price", min_value=0.0, step=0.01, format="%.2f"
+            "Inventory Price",
+            min_value=0.0,
+            step=0.01,
+            format="%.2f",
         )
 
         submitted = st.form_submit_button("Add Inventory")
@@ -58,11 +83,15 @@ if menu == "Add Inventory":
                     "Use Update Inventory to change its details."
                 )
             else:
-                inventories[inventory_id] = {
-                    "quantity": quantity,
-                    "price": price,
-                }
+                inventory_collection.document(inventory_id).set(
+                    {
+                        "quantity": int(quantity),
+                        "price": float(price),
+                    }
+                )
                 st.success(f"{inventory_id} added successfully!")
+                st.rerun()
+
 
 # 2. Remove inventory
 elif menu == "Remove Inventory":
@@ -77,8 +106,10 @@ elif menu == "Remove Inventory":
         )
 
         if st.button("Remove Inventory", type="primary"):
-            del inventories[inventory_id]
+            inventory_collection.document(inventory_id).delete()
             st.success(f"{inventory_id} removed successfully!")
+            st.rerun()
+
 
 # 3. Update inventory
 elif menu == "Update Inventory":
@@ -112,8 +143,11 @@ elif menu == "Update Inventory":
             )
 
             if st.button("Update Quantity"):
-                inventories[inventory_id]["quantity"] = new_quantity
+                inventory_collection.document(inventory_id).update(
+                    {"quantity": int(new_quantity)}
+                )
                 st.success("Quantity updated successfully!")
+                st.rerun()
 
         else:
             new_price = st.number_input(
@@ -126,8 +160,12 @@ elif menu == "Update Inventory":
             )
 
             if st.button("Update Price"):
-                inventories[inventory_id]["price"] = new_price
+                inventory_collection.document(inventory_id).update(
+                    {"price": float(new_price)}
+                )
                 st.success("Price updated successfully!")
+                st.rerun()
+
 
 # 4. Show all inventory
 elif menu == "Show All Inventories":
@@ -140,8 +178,8 @@ elif menu == "Show All Inventories":
         inventory_rows = []
 
         for inventory_id, inventory in inventories.items():
-            quantity = inventory["quantity"]
-            price = inventory["price"]
+            quantity = int(inventory["quantity"])
+            price = float(inventory["price"])
             item_value = quantity * price
             total_inventories_value += item_value
 
@@ -167,7 +205,7 @@ elif menu == "Show All Inventories":
         low_stock_items = [
             inventory_id
             for inventory_id, inventory in inventories.items()
-            if inventory["quantity"] < 5
+            if int(inventory["quantity"]) < 5
         ]
 
         if low_stock_items:
