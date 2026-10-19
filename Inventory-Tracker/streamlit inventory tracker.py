@@ -1,16 +1,20 @@
 
+import requests
 import streamlit as st
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, auth
 
-# Page setup
 st.set_page_config(
     page_title="Inventory Tracker",
     page_icon="📦",
     layout="centered",
 )
 
-# Connect to Firebase
+API_KEY = st.secrets["firebase_web_api_key"]
+AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts"
+REFRESH_URL = "https://securetoken.googleapis.com/v1/token"
+
+
 @st.cache_resource
 def get_database():
     if not firebase_admin._apps:
@@ -22,199 +26,285 @@ def get_database():
     return firestore.client()
 
 
-try:
-    db = get_database()
-    inventory_collection = db.collection("inventory_items")
-except Exception as e:
-    st.error("Could not connect to Firebase. Check your app Secrets.")
-    st.exception(e)
+db = get_database()
+
+
+def firebase_auth(action, payload):
+    response = requests.post(
+        f"{AUTH_URL}:{action}?key={API_KEY}",
+        json=payload,
+        timeout=20,
+    )
+    data = response.json()
+
+    if not response.ok:
+        message = data.get("error", {}).get(
+            "message", "Authentication failed."
+        )
+        raise ValueError(message)
+
+    return data
+
+
+def save_login(data):
+    st.session_state["id_token"] = data["idToken"]
+    st.session_state["refresh_token"] = data["refreshToken"]
+    st.session_state["user_email"] = data.get("email", "")
+
+
+def logout():
+    for key in ("id_token", "refresh_token", "user_email", "user_uid"):
+        st.session_state.pop(key, None)
+
+
+def get_user_uid():
+    token = st.session_state.get("id_token")
+    if not token:
+        return None
+
+    try:
+        decoded = auth.verify_id_token(token)
+        st.session_state["user_uid"] = decoded["uid"]
+        return decoded["uid"]
+
+    except Exception:
+        # Attempt to refresh an expired ID token.
+        refresh_token = st.session_state.get("refresh_token")
+        if not refresh_token:
+            logout()
+            return None
+
+        try:
+            response = requests.post(
+                REFRESH_URL,
+                params={"key": API_KEY},
+                data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                },
+                timeout=20,
+            )
+            data = response.json()
+
+            if not response.ok:
+                logout()
+                return None
+
+            st.session_state["id_token"] = data["id_token"]
+            st.session_state["refresh_token"] = data.get(
+                "refresh_token", refresh_token
+            )
+
+            decoded = auth.verify_id_token(data["id_token"])
+            st.session_state["user_uid"] = decoded["uid"]
+            return decoded["uid"]
+
+        except Exception:
+            logout()
+            return None
+
+
+def show_auth_screen():
+    st.title("📦 Inventory Tracker")
+    st.write("Sign in or create an account to manage your private inventory.")
+
+    login_tab, signup_tab = st.tabs(["Sign in", "Create account"])
+
+    with login_tab:
+        with st.form("login_form"):
+            email = st.text_input("Email address")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Sign in", use_container_width=True)
+
+        if submitted:
+            try:
+                data = firebase_auth(
+                    "signInWithPassword",
+                    {
+                        "email": email.strip(),
+                        "password": password,
+                        "returnSecureToken": True,
+                    },
+                )
+                save_login(data)
+                st.rerun()
+            except ValueError as e:
+                st.error(f"Sign-in failed: {e}")
+            except requests.RequestException:
+                st.error("Could not reach Firebase. Please try again.")
+
+    with signup_tab:
+        with st.form("signup_form"):
+            email = st.text_input("Email address", key="signup_email")
+            password = st.text_input(
+                "Password (at least 6 characters)",
+                type="password",
+                key="signup_password",
+            )
+            confirm = st.text_input(
+                "Confirm password", type="password"
+            )
+            submitted = st.form_submit_button(
+                "Create account", use_container_width=True
+            )
+
+        if submitted:
+            if password != confirm:
+                st.error("The passwords do not match.")
+            elif len(password) < 6:
+                st.error("Use a password with at least 6 characters.")
+            else:
+                try:
+                    data = firebase_auth(
+                        "signUp",
+                        {
+                            "email": email.strip(),
+                            "password": password,
+                            "returnSecureToken": True,
+                        },
+                    )
+                    save_login(data)
+                    st.rerun()
+                except ValueError as e:
+                    st.error(f"Account creation failed: {e}")
+                except requests.RequestException:
+                    st.error("Could not reach Firebase. Please try again.")
+
+
+uid = get_user_uid()
+
+if not uid:
+    show_auth_screen()
     st.stop()
 
 
-# Load inventory from Firestore
+# Each authenticated user gets a separate Firestore subcollection.
+inventory_collection = (
+    db.collection("users")
+    .document(uid)
+    .collection("inventory_items")
+)
+
+
 def load_inventory():
-    items = {}
-    for document in inventory_collection.stream():
-        items[document.id] = document.to_dict()
-    return items
+    return {
+        document.id: document.to_dict()
+        for document in inventory_collection.stream()
+    }
+
+
+st.title("📦 Inventory Tracker")
+st.caption(f"Signed in as {st.session_state.get('user_email', '')}")
+
+if st.button("Sign out"):
+    logout()
+    st.rerun()
+
+inventories = load_inventory()
+
+st.subheader("Add Inventory")
+with st.form("add_inventory_form"):
+    inventory_id = st.text_input("Inventory name or ID").strip().lower()
+    quantity = st.number_input("Quantity", min_value=0, step=1)
+    price = st.number_input("Price per item", min_value=0.0, step=0.01)
+    submitted = st.form_submit_button("Add inventory")
+
+if submitted:
+    if not inventory_id:
+        st.error("Enter an inventory name or ID.")
+    elif inventory_id in inventories:
+        st.error("This item already exists in your inventory.")
+    else:
+        inventory_collection.document(inventory_id).set({
+            "quantity": int(quantity),
+            "price": float(price),
+        })
+        st.success("Inventory added.")
+        st.rerun()
 
 
 inventories = load_inventory()
 
-st.title("📦 Inventory Tracker")
-st.write("Add, remove, update, and monitor your inventory.")
+st.subheader("Update Inventory")
+if inventories:
+    selected = st.selectbox("Choose an item to update", list(inventories))
+    update_type = st.radio(
+        "What do you want to update?",
+        ["Quantity", "Price"],
+        horizontal=True,
+    )
 
-# Navigation menu
-menu = st.sidebar.selectbox(
-    "Inventory Menu",
-    [
-        "Add Inventory",
-        "Remove Inventory",
-        "Update Inventory",
-        "Show All Inventories",
-    ],
-)
-
-
-# 1. Add inventory
-if menu == "Add Inventory":
-    st.header("Add Inventory")
-
-    with st.form("add_inventory_form"):
-        inventory_id = st.text_input("Inventory ID").strip().lower()
-        quantity = st.number_input(
-            "Inventory Quantity", min_value=0, step=1
+    if update_type == "Quantity":
+        new_value = st.number_input(
+            "New quantity",
+            min_value=0,
+            step=1,
+            value=int(inventories[selected].get("quantity", 0)),
         )
-        price = st.number_input(
-            "Inventory Price",
+        field = "quantity"
+        value = int(new_value)
+    else:
+        new_value = st.number_input(
+            "New price",
             min_value=0.0,
             step=0.01,
-            format="%.2f",
+            value=float(inventories[selected].get("price", 0.0)),
         )
+        field = "price"
+        value = float(new_value)
 
-        submitted = st.form_submit_button("Add Inventory")
-
-        if submitted:
-            if not inventory_id:
-                st.error("Please enter an Inventory ID.")
-            elif inventory_id in inventories:
-                st.warning(
-                    "This Inventory ID already exists. "
-                    "Use Update Inventory to change its details."
-                )
-            else:
-                inventory_collection.document(inventory_id).set(
-                    {
-                        "quantity": int(quantity),
-                        "price": float(price),
-                    }
-                )
-                st.success(f"{inventory_id} added successfully!")
-                st.rerun()
+    if st.button("Save update"):
+        inventory_collection.document(selected).update({field: value})
+        st.success("Inventory updated.")
+        st.rerun()
+else:
+    st.info("You have no inventory items yet.")
 
 
-# 2. Remove inventory
-elif menu == "Remove Inventory":
-    st.header("Remove Inventory")
+inventories = load_inventory()
 
-    if not inventories:
-        st.info("Your inventory is empty. Please add inventory first.")
-    else:
-        inventory_id = st.selectbox(
-            "Select inventory to remove",
-            list(inventories.keys()),
-        )
-
-        if st.button("Remove Inventory", type="primary"):
-            inventory_collection.document(inventory_id).delete()
-            st.success(f"{inventory_id} removed successfully!")
-            st.rerun()
+st.subheader("Remove Inventory")
+if inventories:
+    remove_id = st.selectbox(
+        "Choose an item to remove",
+        list(inventories),
+        key="remove_inventory",
+    )
+    if st.button("Remove item"):
+        inventory_collection.document(remove_id).delete()
+        st.success("Inventory item removed.")
+        st.rerun()
 
 
-# 3. Update inventory
-elif menu == "Update Inventory":
-    st.header("Update Inventory")
+st.subheader("Show All Inventories")
+inventories = load_inventory()
 
-    if not inventories:
-        st.info("Your inventory is empty. Please add inventory first.")
-    else:
-        inventory_id = st.selectbox(
-            "Select inventory to update",
-            list(inventories.keys()),
-        )
+if inventories:
+    rows = [
+        {
+            "Inventory ID": item_id,
+            "Quantity": details.get("quantity", 0),
+            "Price": details.get("price", 0.0),
+            "Total Value": (
+                details.get("quantity", 0)
+                * details.get("price", 0.0)
+            ),
+        }
+        for item_id, details in inventories.items()
+    ]
 
-        current_item = inventories[inventory_id]
+    st.dataframe(rows, use_container_width=True)
 
-        st.write(f"Current quantity: {current_item['quantity']}")
-        st.write(f"Current price: {current_item['price']:.2f}")
+    total_value = sum(row["Total Value"] for row in rows)
+    st.metric("Total Inventory Value", f"{total_value:,.2f}")
 
-        update_type = st.radio(
-            "What would you like to update?",
-            ["Quantity", "Price"],
-        )
+    low_stock = [
+        row["Inventory ID"]
+        for row in rows
+        if row["Quantity"] < 5
+    ]
 
-        if update_type == "Quantity":
-            new_quantity = st.number_input(
-                "Enter new quantity",
-                min_value=0,
-                value=int(current_item["quantity"]),
-                step=1,
-                key="update_quantity",
-            )
-
-            if st.button("Update Quantity"):
-                inventory_collection.document(inventory_id).update(
-                    {"quantity": int(new_quantity)}
-                )
-                st.success("Quantity updated successfully!")
-                st.rerun()
-
-        else:
-            new_price = st.number_input(
-                "Enter new price",
-                min_value=0.0,
-                value=float(current_item["price"]),
-                step=0.01,
-                format="%.2f",
-                key="update_price",
-            )
-
-            if st.button("Update Price"):
-                inventory_collection.document(inventory_id).update(
-                    {"price": float(new_price)}
-                )
-                st.success("Price updated successfully!")
-                st.rerun()
-
-
-# 4. Show all inventory
-elif menu == "Show All Inventories":
-    st.header("All Inventories")
-
-    if not inventories:
-        st.info("Your inventory is empty. Please add inventory first.")
-    else:
-        total_inventories_value = 0
-        inventory_rows = []
-
-        for inventory_id, inventory in inventories.items():
-            quantity = int(inventory["quantity"])
-            price = float(inventory["price"])
-            item_value = quantity * price
-            total_inventories_value += item_value
-
-            inventory_rows.append(
-                {
-                    "Inventory ID": inventory_id,
-                    "Quantity": quantity,
-                    "Price": price,
-                    "Total Item Value": item_value,
-                    "Stock Status": (
-                        "⚠️ Low Stock" if quantity < 5 else "In Stock"
-                    ),
-                }
-            )
-
-        st.dataframe(inventory_rows, use_container_width=True)
-
-        st.metric(
-            "Total Inventory Value",
-            f"{total_inventories_value:,.2f}",
-        )
-
-        low_stock_items = [
-            inventory_id
-            for inventory_id, inventory in inventories.items()
-            if int(inventory["quantity"]) < 5
-        ]
-
-        if low_stock_items:
-            st.warning("Low-stock warning: Fewer than 5 items remain.")
-
-            for inventory_id in low_stock_items:
-                st.write(
-                    f"- **{inventory_id}**: "
-                    f"{inventories[inventory_id]['quantity']} left"
-                )
-        else:
-            st.success("No low-stock items.")
+    if low_stock:
+        st.warning("Low stock: " + ", ".join(low_stock))
+else:
+    st.info("Your inventory is empty.")
