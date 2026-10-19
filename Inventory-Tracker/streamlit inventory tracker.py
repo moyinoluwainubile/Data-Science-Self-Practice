@@ -193,118 +193,140 @@ def load_inventory():
     }
 
 
+
 st.title("📦 Inventory Tracker")
 st.caption(f"Signed in as {st.session_state.get('user_email', '')}")
 
-if st.button("Sign out"):
+if st.sidebar.button("Sign out"):
     logout()
     st.rerun()
 
-inventories = load_inventory()
+page = st.sidebar.radio(
+    "Inventory Menu",
+    [
+        "Add Inventory",
+        "Update Inventory",
+        "Remove Inventory",
+        "Show All Inventories",
+    ],
+)
 
-st.subheader("Add Inventory")
-with st.form("add_inventory_form"):
-    inventory_id = st.text_input("Inventory name or ID").strip().lower()
-    quantity = st.number_input("Quantity", min_value=0, step=1)
-    price = st.number_input("Price per item", min_value=0.0, step=0.01)
-    submitted = st.form_submit_button("Add inventory")
-
-if submitted:
-    if not inventory_id:
-        st.error("Enter an inventory name or ID.")
-    elif inventory_id in inventories:
-        st.error("This item already exists in your inventory.")
-    else:
-        inventory_collection.document(inventory_id).set({
-            "quantity": int(quantity),
-            "price": float(price),
-        })
-        st.success("Inventory added.")
-        st.rerun()
-
+inventory_collection = (
+    db.collection("users")
+    .document(uid)
+    .collection("inventory_items")
+)
 
 inventories = load_inventory()
 
-st.subheader("Update Inventory")
-if inventories:
-    selected = st.selectbox("Choose an item to update", list(inventories))
-    update_type = st.radio(
-        "What do you want to update?",
-        ["Quantity", "Price"],
-        horizontal=True,
-    )
+if page == "Add Inventory":
+    st.subheader("Add Inventory")
 
-    if update_type == "Quantity":
-        new_value = st.number_input(
-            "New quantity",
-            min_value=0,
-            step=1,
-            value=int(inventories[selected].get("quantity", 0)),
+    with st.form("add_inventory_form"):
+        inventory_id = st.text_input("Inventory name or ID").strip().lower()
+        quantity = st.number_input("Quantity", min_value=0, step=1)
+        price = st.number_input("Price per item", min_value=0.0, step=0.01)
+        submitted = st.form_submit_button("Add inventory")
+
+    if submitted:
+        if not inventory_id:
+            st.error("Enter an inventory name or ID.")
+        elif inventory_id in inventories:
+            st.error("This item already exists in your inventory.")
+        else:
+            inventory_collection.document(inventory_id).set({
+                "quantity": int(quantity),
+                "price": float(price),
+            })
+            st.success("Inventory added.")
+            st.rerun()
+
+elif page == "Update Inventory":
+    st.subheader("Update Inventory")
+
+    if inventories:
+        selected = st.selectbox(
+            "Choose an item to update",
+            list(inventories),
         )
-        field = "quantity"
-        value = int(new_value)
-    else:
-        new_value = st.number_input(
-            "New price",
-            min_value=0.0,
-            step=0.01,
-            value=float(inventories[selected].get("price", 0.0)),
+
+        update_type = st.radio(
+            "What do you want to update?",
+            ["Quantity", "Price"],
+            horizontal=True,
         )
-        field = "price"
-        value = float(new_value)
 
-    if st.button("Save update"):
-        inventory_collection.document(selected).update({field: value})
-        st.success("Inventory updated.")
-        st.rerun()
-else:
-    st.info("You have no inventory items yet.")
+        if update_type == "Quantity":
+            new_value = st.number_input(
+                "New quantity",
+                min_value=0,
+                step=1,
+                value=int(inventories[selected].get("quantity", 0)),
+            )
+            field = "quantity"
+            value = int(new_value)
+        else:
+            new_value = st.number_input(
+                "New price",
+                min_value=0.0,
+                step=0.01,
+                value=float(inventories[selected].get("price", 0.0)),
+            )
+            field = "price"
+            value = float(new_value)
 
+        if st.button("Save update"):
+            inventory_collection.document(selected).update({field: value})
+            st.success("Inventory updated.")
+            st.rerun()
+    else:
+        st.info("Your inventory is empty.")
 
-inventories = load_inventory()
+elif page == "Remove Inventory":
+    st.subheader("Remove Inventory")
 
-st.subheader("Remove Inventory")
-if inventories:
-    remove_id = st.selectbox(
-        "Choose an item to remove",
-        list(inventories),
-        key="remove_inventory",
-    )
-    if st.button("Remove item"):
-        inventory_collection.document(remove_id).delete()
-        st.success("Inventory item removed.")
-        st.rerun()
+    if inventories:
+        remove_id = st.selectbox(
+            "Choose an item to remove",
+            list(inventories),
+        )
 
+        if st.button("Remove item"):
+            inventory_collection.document(remove_id).delete()
+            st.success("Inventory item removed.")
+            st.rerun()
+    else:
+        st.info("Your inventory is empty.")
 
-st.subheader("Show All Inventories")
-inventories = load_inventory()
+elif page == "Show All Inventories":
+    st.subheader("Show All Inventories")
 
-if inventories:
-    rows = [
-        {
-            "Inventory ID": item_id,
-            "Quantity": details.get("quantity", 0),
-            "Price": details.get("price", 0.0),
-            "Total Value": (
-                details.get("quantity", 0)
-                * details.get("price", 0.0)
-            ),
-        }
-        for item_id, details in inventories.items()
-    ]
+    if inventories:
+        rows = [
+            {
+                "Inventory ID": item_id,
+                "Quantity": details.get("quantity", 0),
+                "Price": details.get("price", 0.0),
+                "Total Value": (
+                    details.get("quantity", 0)
+                    * details.get("price", 0.0)
+                ),
+            }
+            for item_id, details in inventories.items()
+        ]
 
-    st.dataframe(rows, use_container_width=True)
+        st.dataframe(rows, use_container_width=True)
 
-    total_value = sum(row["Total Value"] for row in rows)
-    st.metric("Total Inventory Value", f"{total_value:,.2f}")
+        total_value = sum(row["Total Value"] for row in rows)
+        st.metric("Total Inventory Value", f"{total_value:,.2f}")
 
-    low_stock = [
-        row["Inventory ID"]
-        for row in rows
-        if row["Quantity"] < 5
-    ]
+        low_stock = [
+            row["Inventory ID"]
+            for row in rows
+            if row["Quantity"] < 5
+        ]
 
-    if low_stock:
-        st.warning("Low stock: " + ", ".join(low_stock))
-else:
-    st.info("Your inventory is empty.")
+        if low_stock:
+            st.warning("Low stock: " + ", ".join(low_stock))
+    else:
+        st.info("Your inventory is empty.")
